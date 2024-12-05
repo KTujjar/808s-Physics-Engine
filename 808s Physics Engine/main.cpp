@@ -15,8 +15,12 @@
 #include <array>
 #include <iostream>
 
+#include "controls.hpp"
+
 #include "loadShader.hpp"
 
+
+GLFWwindow* window;
 
 // An array of 3 vectors which represents 3 vertices
 static const GLfloat g_vertex_buffer_data[] = {
@@ -100,7 +104,6 @@ static const GLfloat g_color_buffer_data[] = {
 
 int main(void)
 {
-    GLFWwindow* window;
 
     /* Initialize the library */
     if (!glfwInit())
@@ -124,6 +127,13 @@ int main(void)
         return -1;
     }
 
+    // Hide the mouse and enable unlimited movement
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+    // Set the mouse at the center of the screen
+    glfwPollEvents();
+    //glfwSetCursorPos(window, 640/2, 480/2);
+
     //Window width and height
     int width, height;
     glfwGetWindowSize(window, &width, &height);
@@ -146,21 +156,6 @@ int main(void)
     glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
     glBufferData(GL_ARRAY_BUFFER, sizeof(g_color_buffer_data), g_color_buffer_data, GL_STATIC_DRAW);
 
-    //Projection Matrix
-    glm::mat4 Projection = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.1f, 100.0f);
-
-    glm::mat4 View = glm::lookAt(
-        glm::vec3(4, 3, -3), // Camera is at (4,3,3), in World Space
-        glm::vec3(0, 0, 0), // and looks at the origin
-        glm::vec3(0, 1, 0)  // Head is up (set to 0,-1,0 to look upside-down)
-    );
-
-    //model matrix: identity matrix
-    glm::mat4 Model = glm::mat4(1.0f);
-
-    //mvp matrix
-    glm::mat4 mvp = Projection * View * Model;
-
     // Create and compile our GLSL program from the shaders
     GLuint programID = LoadShaders("SimpleVertexShader.vertexshader", "SimpleFragmentShader.fragmentshader");
 
@@ -175,13 +170,13 @@ int main(void)
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init(nullptr);
 
-
     //These are used to make sure that closer models are appearing before farther ones.
     //Enables Depth Test
     glEnable(GL_DEPTH_TEST);
     //Accept fragment if it closer to the camera than the former one
     glDepthFunc(GL_LESS);
 
+    glEnable(GL_CULL_FACE);
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window))
     {
@@ -189,6 +184,13 @@ int main(void)
         glUseProgram(programID);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
+        // Compute the MVP matrix from keyboard and mouse input
+        computeMatricesFromInputs();
+        glm::mat4 ProjectionMatrix = getProjectionMatrix();
+        glm::mat4 ViewMatrix = getViewMatrix();
+        glm::mat4 ModelMatrix = glm::mat4(1.0);
+        glm::mat4 MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
+
         //Attribute buffer for vertices
         glEnableVertexAttribArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
@@ -219,7 +221,8 @@ int main(void)
 
         // Send our transformation to the currently bound shader, in the "MVP" uniform
         // This is done in the main loop since each model will have a different MVP matrix (At least for the M part)
-        glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &mvp[0][0]);
+        glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
+
         
         //ImGui Window
         ImGui_ImplOpenGL3_NewFrame();
